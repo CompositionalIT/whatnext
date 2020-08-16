@@ -6,12 +6,13 @@ open Shared
 open Fable.FontAwesome
 
 type Model =
-    { Projects: Project list
+    { AllProjects: Project list
+      DisplayedProjects : Project list
       Input: string }
 
 type Msg =
     | UpdateModel of (Model -> Model)
-    | SetInput of string
+    | Search of string
 
 let projectApi =
     Remoting.createApi()
@@ -20,17 +21,28 @@ let projectApi =
 
 let init() =
     let model =
-        { Projects = []
+        { AllProjects = []
+          DisplayedProjects = []
           Input = "" }
-    let cmd = Cmd.OfAsync.perform projectApi.getProjects () (fun projects model -> { model with Projects = projects })
+    let cmd = Cmd.OfAsync.perform projectApi.getProjects () (fun projects model -> { model with AllProjects = projects })
     model, Cmd.map UpdateModel cmd
+
+let searchProjects (term:string) projects =
+    let term = term.ToLower()
+    projects
+    |> List.filter(fun project ->
+        project.Name.ToLower().Contains term
+        || project.Description.ToLower().Contains term
+        || (string project.Difficulty).ToLower().Contains term
+        || project.Skills |> List.exists(fun skill -> (string skill).ToLower().Contains term))
 
 let update msg model =
     match msg with
     | UpdateModel update ->
         update model, Cmd.none
-    | SetInput value ->
-        { model with Input = value }, Cmd.none
+    | Search value ->
+        { model with
+            DisplayedProjects = model.AllProjects |> searchProjects value }, Cmd.none
 
 open Fable.React
 open Fable.React.Props
@@ -53,7 +65,7 @@ let containerBox model dispatch =
     Box.box' [ ] [
         Content.content [ ] [
             Control.div [ Control.HasIconLeft ] [
-                Input.search [ Input.Placeholder "Search for a project!" ]
+                Input.search [ Input.Placeholder "Search for a project!"; Input.OnChange (fun e -> e.Value |> Search |> dispatch) ]
                 Icon.icon [ Icon.IsLeft ] [
                     Fa.i [ Fa.Solid.Search ] []
                 ]
@@ -69,7 +81,7 @@ let containerBox model dispatch =
                     ]
                 ]
                 tbody [] [
-                    for project in model.Projects do
+                    for project in List.truncate 10 model.DisplayedProjects do
                         tr [] [
                             td [] [ strong [] [ a [ Href project.Repository ] [ str project.Name ] ] ]
                             td [] [
