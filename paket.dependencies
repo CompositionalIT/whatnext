@@ -6,6 +6,7 @@ nuget Fable.Remoting.Giraffe
 nuget Saturn
 nuget Expecto
 
+nuget Farmer
 nuget Fable.Core
 nuget Fable.Elmish
 nuget Fable.Elmish.React

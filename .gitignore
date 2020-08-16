@@ -13,3 +13,5 @@ release.cmd
 release.sh
 *.orig
 *.DotSettings.user
+.paket/load
+.farmer
