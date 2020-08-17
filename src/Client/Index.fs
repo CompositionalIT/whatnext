@@ -10,9 +10,10 @@ type Model =
       DisplayedProjects : Project list
       Input: string }
 
+type SearchTerm = Wildcard | UserTerm of string
 type Msg =
-    | UpdateModel of (Model -> Model)
-    | Search of string
+    | LoadedProjects of Project list
+    | Search of SearchTerm
 
 let projectApi =
     Remoting.createApi()
@@ -24,22 +25,28 @@ let init() =
         { AllProjects = []
           DisplayedProjects = []
           Input = "" }
-    let cmd = Cmd.OfAsync.perform projectApi.getProjects () (fun projects model -> { model with AllProjects = projects })
-    model, Cmd.map UpdateModel cmd
+    model, Cmd.OfAsync.perform projectApi.getProjects () LoadedProjects
 
-let searchProjects (term:string) projects =
-    let term = term.ToLower()
-    projects
-    |> List.filter(fun project ->
-        project.Name.ToLower().Contains term
-        || project.Description.ToLower().Contains term
-        || (string project.Difficulty).ToLower().Contains term
-        || project.Skills |> List.exists(fun skill -> (string skill).ToLower().Contains term))
+let searchProjects term projects =
+    match term with
+    | Wildcard -> projects
+    | UserTerm term ->
+        let terms = term.ToLower().Split ' ' |> List.ofArray
+        let isMatch project term =
+            project.Name.ToLower().Contains term
+            || project.Description.ToLower().Contains term
+            || (string project.Difficulty).ToLower().Contains term
+            || project.Skills |> List.exists(fun skill -> (string skill).ToLower().Contains term)
+        projects
+        |> List.filter(fun project ->
+            terms
+            |> List.forall(fun term -> isMatch project term))
+    |> List.truncate 10
 
 let update msg model =
     match msg with
-    | UpdateModel update ->
-        update model, Cmd.none
+    | LoadedProjects projects ->
+        { model with AllProjects = projects }, Cmd.ofMsg (Search Wildcard)
     | Search value ->
         { model with
             DisplayedProjects = model.AllProjects |> searchProjects value }, Cmd.none
@@ -65,7 +72,7 @@ let containerBox model dispatch =
     Box.box' [ ] [
         Content.content [ ] [
             Control.div [ Control.HasIconLeft ] [
-                Input.search [ Input.Placeholder "Search for a project!"; Input.OnChange (fun e -> e.Value |> Search |> dispatch) ]
+                Input.search [ Input.Placeholder "Search for a project!"; Input.OnChange (fun e -> e.Value |> UserTerm |> Search |> dispatch) ]
                 Icon.icon [ Icon.IsLeft ] [
                     Fa.i [ Fa.Solid.Search ] []
                 ]
@@ -81,7 +88,7 @@ let containerBox model dispatch =
                     ]
                 ]
                 tbody [] [
-                    for project in List.truncate 10 model.DisplayedProjects do
+                    for project in model.DisplayedProjects do
                         tr [] [
                             td [] [ strong [] [ a [ Href project.Repository ] [ str project.Name ] ] ]
                             td [] [

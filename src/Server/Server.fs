@@ -2,6 +2,7 @@ module Server
 
 open Fable.Remoting.Server
 open Fable.Remoting.Giraffe
+open Microsoft.Azure.Cosmos.Table
 open Saturn
 
 open Shared
@@ -15,26 +16,36 @@ let makeProject name description repo contact difficulty skills =
       Difficulty = difficulty
       Skills = List.map Skill skills }
 
+//TODO: Replace with managed identity...
+let storage =
+    match Option.ofObj (System.Environment.GetEnvironmentVariable "storage_key") with
+    | None -> CloudStorageAccount.DevelopmentStorageAccount
+    | Some key -> CloudStorageAccount.Parse key
+let projects =
+    let projects =
+        let tableClient = storage.CreateCloudTableClient()
+        tableClient.GetTableReference "Projects"
+    projects.CreateIfNotExists() |> ignore
+    projects
+
 let projectsApi =
+    let (|Field|_|) field (row:DynamicTableEntity) =
+        match row.Properties.TryGetValue field with
+        | true, v -> Some (Field v.StringValue)
+        | false, _ -> None
+
     { getProjects = fun () -> async { return [
-        makeProject "What next"
-                    "This is a SAFE Stack data entry app that records what projects people could use help with."
-                    "https://github.com/compositionalit/whatnext"
-                    (Twitter "@compositionalit")
-                    Beginner
-                    [ "SAFE Stack" ]
-        makeProject "Farmer"
-                    "A library to generate ARM templates for Azure deployments using an F# DSL."
-                    "https://github.com/compositionalit/farmer"
-                    (Email "isaac@compositional-it.com")
-                    Average
-                    [ "F#"; "Azure"; "API design" ]
-        makeProject "SAFE Template"
-                    "The actual template for the SAFE Stack."
-                    "https://github.com/safe-stack/safe-template"
-                    (Twitter "@safe_stack")
-                    Expert
-                    [ "dotnet"; "SAFE Stack"; "webpack"; "FAKE" ]
+        let query = projects.ExecuteQuery(TableQuery()) |> Seq.toArray
+        for row in query do
+            makeProject row.Properties.["Name"].StringValue
+                        row.Properties.["Description"].StringValue
+                        row.Properties.["Repository"].StringValue
+                        (match row with
+                        | Field "Twitter" v -> Twitter v
+                        | Field "Email" v -> Email v
+                        | _ -> failwith "Missing a contact method")
+                        (Difficulty.Parse row.Properties.["Difficulty"].StringValue)
+                        (row.Properties.["Skills"].StringValue.Split ',' |> Array.toList)
       ]}
     }
 

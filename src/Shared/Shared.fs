@@ -8,7 +8,13 @@ type Contact =
 
 type Skill = Skill of string
 
-type Difficulty = Beginner | Average | Expert
+type Difficulty =
+    | Beginner | Average | Expert
+    static member Parse = function
+        | "Beginner" -> Beginner
+        | "Average" -> Average
+        | "Expert" -> Expert
+        | v -> failwithf "Unknown difficulty %s" v
 
 type Project =
     { Name : string
