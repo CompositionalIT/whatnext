@@ -29,7 +29,8 @@ let init() =
 
 let searchProjects term projects =
     match term with
-    | Wildcard -> projects
+    | Wildcard ->
+        projects
     | UserTerm term ->
         let terms = term.ToLower().Split ' ' |> List.ofArray
         let isMatch project term =
@@ -41,6 +42,7 @@ let searchProjects term projects =
         |> List.filter(fun project ->
             terms
             |> List.forall(fun term -> isMatch project term))
+    |> List.sortBy(fun r -> r.Name)
     |> List.truncate 10
 
 let update msg model =
