@@ -1203,7 +1203,7 @@ NUGET
       Fake.Core.Trace (>= 5.19.1)
       FSharp.Core (>= 4.7)
       System.Net.Http (>= 4.3.4)
-    Farmer (0.14)
+    Farmer (0.23)
       FSharp.Core (>= 4.7.1)
       Newtonsoft.Json (>= 12.0.2)
     FParsec (1.1.1)
